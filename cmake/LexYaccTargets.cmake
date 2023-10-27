@@ -116,7 +116,7 @@ function(find_flex)
     endif()
     get_filename_component(bindir "${FLEX_EXECUTABLE}" DIRECTORY)
 
-    find_path(FLEX_INCLUDE_DIR FlexLexer.h HINTS "${bindir}" "${lexyacc_SOURCE_DIR}" ${FLEX_INCLUDE_DIRS} REQUIRED)
+    find_path(FLEX_INCLUDE_DIR FlexLexer.h HINTS lexyacc "${bindir}" "${lexyacc_SOURCE_DIR}" ${FLEX_INCLUDE_DIRS} REQUIRED)
     message(STATUS "Flex Include Dirs: ${FLEX_INCLUDE_DIR} Flex Exec: ${FLEX_EXECUTABLE}")
 endfunction()
 

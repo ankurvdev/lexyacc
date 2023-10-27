@@ -9,6 +9,9 @@ vcpkg_cmake_configure(
     SOURCE_PATH ${SOURCE_PATH}
 )
 
+vcpkg_find_acquire_program(FLEX)
+vcpkg_find_acquire_program(BISON)
+
 vcpkg_cmake_install()
 vcpkg_copy_pdbs()
 
@@ -23,7 +26,11 @@ endif()
 
 file(READ "${CURRENT_PACKAGES_DIR}/share/lexyacc/LexYaccConfig.cmake" config_contents)
 file(WRITE "${CURRENT_PACKAGES_DIR}/share/lexyacc/LexYaccConfig.cmake"
-"find_program(
+"
+set(FLEX_EXECUTABLE \"${FLEX}\" CACHE PATH "Location of flex")
+set(BISON_EXECUTABLE \"${BISON}\" CACHE PATH "Location of bison")
+
+find_program(
     lexyacc_EXECUTABLE lexyacc
     PATHS
         \"\${CMAKE_CURRENT_LIST_DIR}/../../../${HOST_TRIPLET}/tools/${PORT}\"
