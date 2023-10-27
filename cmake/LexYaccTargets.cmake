@@ -104,7 +104,6 @@ function(find_flex)
     if (EXISTS ${FLEX_EXECUTABLE})
         return()
     endif()
-    message(STATUS "Flex Include Dirs: ${FLEX_INCLUDE_DIR} Flex Exec: ${FLEX_EXECUTABLE}")
 
     if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
         find_program(FLEX_EXECUTABLE win_flex)
@@ -118,20 +117,15 @@ function(find_flex)
     else()
         build_flex()
     endif()
+
+    get_filename_component(bindir "${FLEX_EXECUTABLE}" DIRECTORY)
+
+    find_path(FLEX_INCLUDE_DIR FlexLexer.h HINTS "${bindir}" "${LexYacc_DIR}" ${FLEX_INCLUDE_DIRS} REQUIRED)
+    message(STATUS "Flex Include Dirs: ${FLEX_INCLUDE_DIR} Flex Exec: ${FLEX_EXECUTABLE}")
 endfunction()
 
 function(_target_add_lexyacc target lyfile lexyacc_NAME)
     get_filename_component(lyfile "${lyfile}" ABSOLUTE)
-
-    if (NOT EXISTS "${FLEX_INCLUDE_DIR}")
-        get_filename_component(bindir "${FLEX_EXECUTABLE}" DIRECTORY)
-        if (EXISTS "${bindir}/FlexLexer.h")
-            set(FLEX_INCLUDE_DIR "${bindir}" CACHE PATH "Flex Include" FORCE)
-        elseif(EXISTS "${LexYacc_DIR}/FlexLexer.h")
-            set(FLEX_INCLUDE_DIR "${LexYacc_DIR}" CACHE PATH "Flex Include" FORCE)
-        endif()
-    endif()
-
     get_filename_component(srcdir "${lyfile}" DIRECTORY)
 
     set(lytgt ${target}_lexyacc_${lexyacc_NAME})
@@ -161,17 +155,7 @@ function(_target_add_lexyacc target lyfile lexyacc_NAME)
 
     target_sources(${target} PRIVATE "${lyfile}" ${outputs})
     target_include_directories(${target} PUBLIC "${outdir}")
-    if (DEFINED FLEX_INCLUDE_DIRS)
-        set(FLEX_INCLUDE_DIR ${FLEX_INCLUDE_DIRS} CACHE PATH "Flex Include dir" FORCE)
-    endif()
-
-    if (NOT EXISTS "${FLEX_INCLUDE_DIR}")
-        message(WARNING "Flex include dir not available ${FLEX_INCLUDE_DIR} :: ${FLEX_INCLUDE_DIRS}")
-        target_include_directories(${target} PRIVATE ${LexYacc_DIR})
-    else()
-        message(STATUS "Flex include dir :: ${FLEX_INCLUDE_DIR} :: ${FLEX_INCLUDE_DIRS}")
-        target_include_directories(${target} PRIVATE ${FLEX_INCLUDE_DIR})
-    endif()
+    target_include_directories(${target} PRIVATE ${FLEX_INCLUDE_DIR})
 
     if (${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         target_compile_options(${target} PRIVATE /W3 /WX-)
