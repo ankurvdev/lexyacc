@@ -21,11 +21,12 @@ set(CMAKE_CXX_STANDARD 20)
 EnableStrictCompilation()
 #set(CMAKE_FIND_DEBUG_MODE TRUE)
 
-find_package(lexyacc REQUIRED)
-add_executable(lexyacc-test main.cpp)
+find_package(LexYacc REQUIRED)
+add_executable(lexyacctest main.cpp)
 
 add_lexyacc_library(TARGET WavefrontObj LYFILE WavefrontObj.ly)
-target_include_directories(lexyacctest PRIVATE)
+target_include_directories(WavefrontObj PRIVATE .)
+target_include_directories(lexyacctest PRIVATE .)
 
 enable_testing()
 add_test(NAME lexyacctest COMMAND lexyacctest)
