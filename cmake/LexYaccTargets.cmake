@@ -1,6 +1,6 @@
 # On Android cross compilation systems avoid the crosscompiled exe
 include(FetchContent)
-include(FindOrBuildTool.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/FindOrBuildTool.cmake)
 
 function(download_winflexbison)
     set(WINFLEXBISON_URL  "https://github.com/lexxmark/winflexbison/releases/download/v2.5.22/win_flex_bison-2.5.22.zip")
