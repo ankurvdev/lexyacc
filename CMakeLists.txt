@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.26)
 include(CMakePackageConfigHelpers)
+include(cmake/BuildEnv.cmake)
 set(CMAKE_CXX_STANDARD 17)
 option(LEXYACC_SKIP_INSTALL "Do not install lexyacc" OFF)
 
 project(lexyacc VERSION 0.0.1)
+EnableStrictCompilation()
 
 add_executable(lexyacc lexyacc.cpp)
 set_target_properties(lexyacc PROPERTIES PUBLIC_HEADER "FlexLexer.h")
