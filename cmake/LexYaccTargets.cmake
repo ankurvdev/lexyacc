@@ -1,6 +1,6 @@
 # On Android cross compilation systems avoid the crosscompiled exe
 include(FetchContent)
-include(FindOrBuildTool.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/FindOrBuildTool.cmake)
 
 function(download_winflexbison)
     set(WINFLEXBISON_URL  "https://github.com/lexxmark/winflexbison/releases/download/v2.5.22/win_flex_bison-2.5.22.zip")
@@ -90,48 +90,37 @@ function(find_bison)
 endfunction()
 
 function(find_flex)
-    if (EXISTS ${FLEX_EXECUTABLE})
-        return()
-    endif()
-    if (DEFINED WINFLEXBISON_DIR)
-        if ((EXISTS ${WINFLEXBISON_DIR}) AND (EXISTS ${WINFLEXBISON_DIR}/win_flex.exe))
-            set(FLEX_EXECUTABLE ${WINFLEXBISON_DIR}/win_flex.exe CACHE PATH  "Flex executable" FORCE)
-            return()
+    if (NOT EXISTS ${FLEX_EXECUTABLE})
+        if (DEFINED WINFLEXBISON_DIR)
+            if ((EXISTS ${WINFLEXBISON_DIR}) AND (EXISTS ${WINFLEXBISON_DIR}/win_flex.exe))
+                set(FLEX_EXECUTABLE ${WINFLEXBISON_DIR}/win_flex.exe CACHE PATH  "Flex executable" FORCE)
+                return()
+            endif()
+        endif()
+
+        find_package(FLEX QUIET)
+        if (NOT EXISTS ${FLEX_EXECUTABLE})
+            if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+                find_program(FLEX_EXECUTABLE win_flex)
+                if (EXISTS ${FLEX_EXECUTABLE})
+                    return()
+                endif()
+            endif()
+
+            if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+                download_winflexbison()
+            else()
+                build_flex()
+            endif()
         endif()
     endif()
-
-    find_package(FLEX QUIET)
-    if (EXISTS ${FLEX_EXECUTABLE})
-        return()
-    endif()
+    get_filename_component(bindir "${FLEX_EXECUTABLE}" DIRECTORY)
+    find_path(FLEX_INCLUDE_DIR FlexLexer.h PATH_SUFFIXES lexyacc HINTS "${bindir}" "${lexyacc_SOURCE_DIR}" ${FLEX_INCLUDE_DIRS} REQUIRED)
     message(STATUS "Flex Include Dirs: ${FLEX_INCLUDE_DIR} Flex Exec: ${FLEX_EXECUTABLE}")
-
-    if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
-        find_program(FLEX_EXECUTABLE win_flex)
-        if (EXISTS ${FLEX_EXECUTABLE})
-            return()
-        endif()
-    endif()
-
-    if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
-        download_winflexbison()
-    else()
-        build_flex()
-    endif()
 endfunction()
 
 function(_target_add_lexyacc target lyfile lexyacc_NAME)
     get_filename_component(lyfile "${lyfile}" ABSOLUTE)
-
-    if (NOT EXISTS "${FLEX_INCLUDE_DIR}")
-        get_filename_component(bindir "${FLEX_EXECUTABLE}" DIRECTORY)
-        if (EXISTS "${bindir}/FlexLexer.h")
-            set(FLEX_INCLUDE_DIR "${bindir}" CACHE PATH "Flex Include" FORCE)
-        elseif(EXISTS "${LexYacc_DIR}/FlexLexer.h")
-            set(FLEX_INCLUDE_DIR "${LexYacc_DIR}" CACHE PATH "Flex Include" FORCE)
-        endif()
-    endif()
-
     get_filename_component(srcdir "${lyfile}" DIRECTORY)
 
     set(lytgt ${target}_lexyacc_${lexyacc_NAME})
@@ -146,22 +135,11 @@ function(_target_add_lexyacc target lyfile lexyacc_NAME)
     set(hh "${outdir}/${lexyacc_NAME}.ly.h")
 
     set(outputs "${yy}" "${yh}" "${yc}" "${ll}" "${lc}" "${hh}")
-    if (NOT EXISTS "${LEXYACC_EXECUTABLE}")
-        find_program(LEXYACC_EXECUTABLE lexyacc)
-    endif()
-    if (NOT EXISTS "${LEXYACC_EXECUTABLE}")
-        add_custom_command(
-            OUTPUT  "${yy}" "${ll}"
-            COMMAND lexyacc "${lyfile}" --outdir "${outdir}" --prefix ${lexyacc_NAME}
-            DEPENDS lexyacc "${lyfile}"
-        )
-    else()
-        add_custom_command(
-            OUTPUT  "${yy}" "${ll}"
-            COMMAND "${LEXYACC_EXECUTABLE}" "${lyfile}" --outdir "${outdir}" --prefix ${lexyacc_NAME}
-            DEPENDS "${LEXYACC_EXECUTABLE}" "${lyfile}"
-        )
-    endif()
+    add_custom_command(
+        OUTPUT  "${yy}" "${ll}"
+        COMMAND ${lexyacc_EXECUTABLE} "${lyfile}" --outdir "${outdir}" --prefix ${lexyacc_NAME}
+        DEPENDS ${lexyacc_EXECUTABLE} "${lyfile}"
+    )
 
     add_custom_command(
         OUTPUT  "${yh}" "${yc}" "${lc}" "${hh}"
@@ -172,17 +150,7 @@ function(_target_add_lexyacc target lyfile lexyacc_NAME)
 
     target_sources(${target} PRIVATE "${lyfile}" ${outputs})
     target_include_directories(${target} PUBLIC "${outdir}")
-    if (DEFINED FLEX_INCLUDE_DIRS)
-        set(FLEX_INCLUDE_DIR ${FLEX_INCLUDE_DIRS} CACHE PATH "Flex Include dir" FORCE)
-    endif()
-
-    if (NOT DEFINED FLEX_INCLUDE_DIR)
-        message(WARNING "Flex include dir not available ${FLEX_INCLUDE_DIR} :: ${FLEX_INCLUDE_DIRS}")
-        target_include_directories(${target} PRIVATE ${LexYacc_DIR})
-    else()
-        message(STATUS "Flex include dir :: ${FLEX_INCLUDE_DIR} :: ${FLEX_INCLUDE_DIRS}")
-        target_include_directories(${target} PRIVATE ${FLEX_INCLUDE_DIR})
-    endif()
+    target_include_directories(${target} PRIVATE ${FLEX_INCLUDE_DIR})
 
     if (${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         target_compile_options(${target} PRIVATE /W3 /WX-)
@@ -193,8 +161,8 @@ function(_target_add_lexyacc target lyfile lexyacc_NAME)
         # 4625 copy constructor implicitly defined as deleted
         # 5027 move assignment operator implicitly defined as deleted
         # 4668 is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
-        set_source_files_properties("$lc}" PROPERTIES COMPILE_FLAGS "/W3")
-        set_source_files_properties("$yc}" PROPERTIES COMPILE_FLAGS "/W3")
+        set_source_files_properties("${lc}" PROPERTIES COMPILE_FLAGS "/W3")
+        set_source_files_properties("${yc}" PROPERTIES COMPILE_FLAGS "/W3")
     elseif((${CMAKE_CXX_COMPILER_ID} STREQUAL GNU) OR (${CMAKE_CXX_COMPILER_ID} STREQUAL Clang))
         set_source_files_properties(${lc} PROPERTIES COMPILE_FLAGS "-Wno-everything")
         set_source_files_properties(${yc} PROPERTIES COMPILE_FLAGS "-Wno-everything")
