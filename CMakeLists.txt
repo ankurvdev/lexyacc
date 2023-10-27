@@ -5,7 +5,7 @@ option(LEXYACC_SKIP_INSTALL "Do not install lexyacc" OFF)
 
 project(lexyacc VERSION 0.0.1)
 
-add_executable(lexyacc LexYacc.cpp)
+add_executable(lexyacc lexyacc.cpp)
 if (NOT LEXYACC_SKIP_INSTALL)
     install(
         TARGETS lexyacc
