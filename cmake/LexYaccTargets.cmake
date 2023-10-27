@@ -176,7 +176,7 @@ function(_target_add_lexyacc target lyfile lexyacc_NAME)
         set(FLEX_INCLUDE_DIR ${FLEX_INCLUDE_DIRS} CACHE PATH "Flex Include dir" FORCE)
     endif()
 
-    if (NOT DEFINED FLEX_INCLUDE_DIR)
+    if (NOT EXISTS "${FLEX_INCLUDE_DIR}")
         message(WARNING "Flex include dir not available ${FLEX_INCLUDE_DIR} :: ${FLEX_INCLUDE_DIRS}")
         target_include_directories(${target} PRIVATE ${LexYacc_DIR})
     else()
