@@ -163,7 +163,7 @@ function(_target_add_lexyacc target lyfile lexyacc_NAME)
         # 4668 is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
         set_source_files_properties("${lc}" PROPERTIES COMPILE_FLAGS "/W3")
         set_source_files_properties("${yc}" PROPERTIES COMPILE_FLAGS "/W3")
-    elseif((${CMAKE_CXX_COMPILER_ID} STREQUAL GNU) OR (${CMAKE_CXX_COMPILER_ID} STREQUAL Clang))
+    elseif((${CMAKE_CXX_COMPILER_ID} STREQUAL GNU) OR (${CMAKE_CXX_COMPILER_ID} MATCHES Clang))
         set_source_files_properties(${lc} PROPERTIES COMPILE_FLAGS "-Wno-everything")
         set_source_files_properties(${yc} PROPERTIES COMPILE_FLAGS "-Wno-everything")
     endif()
