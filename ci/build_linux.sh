@@ -1,8 +1,10 @@
 #!/bin/bash
+# cppforge-sync
 set -e
 set -o pipefail
 set -x
 
-cmake -DCMAKE_CXX_FLAGS=-stdlib=libstdc++ $(dirname $(realpath $0))/..
-cmake --build . -j --verbose --target package
+cmake $(dirname $(realpath $0))/..
+# Building with -j causes devops agents to run out of memory
+cmake --build . -j8 --verbose --target package
 ctest --output-on-failure
