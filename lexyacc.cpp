@@ -118,26 +118,26 @@ try
 
 namespace zzNAMESPACEzz
 {
-    void Load(Context& context, std::istream& strm);
+    void Load(Context& ctx, std::istream& strm);
 
-    inline void LoadString(Context& context, std::string_view const& str)
+    inline void LoadString(Context& ctx, std::string_view const& str)
     {
         std::string temp(str); // TODO : avoid reallocating a string
         std::stringstream sstrm(temp);
-        Load(context, sstrm);
+        Load(ctx, sstrm);
     }
 
-    inline void LoadString(Context& context, std::string const& str)
+    inline void LoadString(Context& ctx, std::string const& str)
     {
         std::stringstream sstrm(str);
-        Load(context, sstrm);
+        Load(ctx, sstrm);
     }
 
-    inline void LoadFile(Context& context, std::filesystem::path const& path)
+    inline void LoadFile(Context& ctx, std::filesystem::path const& path)
     {
         std::ifstream file(path);
         if (!file.is_open()) throw std::invalid_argument("Cannot open file: " + path.string());
-        Load(context, file);
+        Load(ctx, file);
     }
 } // namespace zzNAMESPACEzz
 )";
