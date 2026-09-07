@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.26)
 include(CMakePackageConfigHelpers)
 include(cmake/BuildEnv.cmake)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 option(LEXYACC_SKIP_INSTALL "Do not install lexyacc" OFF)
 
 project(lexyacc VERSION 0.0.1)

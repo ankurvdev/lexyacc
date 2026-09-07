@@ -1,4 +1,4 @@
-#if defined _MSC_VER
+#ifdef _MSC_VER
 #pragma warning(push, 3)
 #pragma warning(disable : 5262) /*xlocale(2010,13): implicit fall-through occurs here*/
 #endif
@@ -10,13 +10,25 @@
 #include <string>
 #include <unordered_map>
 
-#if defined _MSC_VER
+#ifdef __clang__
+#define LFTBND [[clang::lifetimebound]]
+#elifdef _MSC_VER
+#define LFTBND [[msvc::lifetimebound]]
+#else
+#define LFTBND
+#endif
+
+#ifdef _MSC_VER
 #pragma warning(pop)
 #endif
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
+#endif
 namespace stdfs = std::filesystem;
 
-static void find_and_replace(std::string& source, std::string const& find, std::string const& replace)
+static void FindAndReplace(std::string& source, std::string const& find, std::string const& replace)
 {
     for (std::string::size_type i = 0; (i = source.find(find, i)) != std::string::npos;)
     {
@@ -24,26 +36,29 @@ static void find_and_replace(std::string& source, std::string const& find, std::
         i += replace.length();
     }
 }
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
-static std::string tryreadfile(stdfs::path fname)
+static std::string TryReadfile(stdfs::path const& fname)
 {
     if (!stdfs::exists(fname)) { return ""; }
 
     std::ifstream ly(fname);
     if (!ly.is_open()) { throw std::invalid_argument("cannot open file : " + fname.string()); }
 
-    return std::string((std::istreambuf_iterator<char>(ly)), (std::istreambuf_iterator<char>()));
+    return {(std::istreambuf_iterator<char>(ly)), (std::istreambuf_iterator<char>())};
 }
 
-static void generate(stdfs::path fname, std::string tmpl, std::unordered_map<std::string, std::string> const& params)
+static void Generate(stdfs::path const& fname, std::string tmpl, std::unordered_map<std::string, std::string> const& params)
 {
-    for (auto const& [k, v] : params) { find_and_replace(tmpl, "zz" + std::string(k) + "zz", v); }
-    if (tmpl == tryreadfile(fname)) return;
+    for (auto const& [k, v] : params) { FindAndReplace(tmpl, "zz" + std::string(k) + "zz", v); }
+    if (tmpl == TryReadfile(fname)) return;
     std::ofstream of(fname);
     of.write(tmpl.data(), static_cast<std::streamsize>(tmpl.size()));
     of.close();
 }
-#if defined(__clang__)
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunsafe-buffer-usage"
 #endif
@@ -74,20 +89,18 @@ try
         else { throw std::invalid_argument("unexpected"); }
     }
 
-#if defined(__clang__)
+#ifdef __clang__
 #pragma clang diagnostic pop
 #endif
 
     if (prefix.empty()) { prefix = stdfs::path(lyfile).stem().string(); }
-
-    stdfs::path   path(lyfile);
     std::ifstream ly(lyfile);
     if (!ly.is_open()) { throw std::invalid_argument("cannot open file : " + lyfile); }
     std::string content((std::istreambuf_iterator<char>(ly)), (std::istreambuf_iterator<char>()));
 
     auto findstart
-        = [](std::string const& str, std::string const& tag) { return str.begin() + static_cast<int>(str.find(tag) + tag.length()); };
-    auto findend = [](std::string const& str, std::string const& tag) { return str.begin() + static_cast<int>(str.find(tag)); };
+        = [](std::string const& str LFTBND, std::string const& tag) { return str.begin() + static_cast<int>(str.find(tag) + tag.length()); };
+    auto findend = [](std::string const& str LFTBND, std::string const& tag) { return str.begin() + static_cast<int>(str.find(tag)); };
 
     auto        flex = std::string(findstart(content, "LEXYACC:LEX:START"), findend(content, "LEXYACC:LEX:END"));
     auto        yacc = std::string(findstart(content, "LEXYACC:YACC:START"), findend(content, "LEXYACC:YACC:END"));
@@ -96,7 +109,7 @@ try
     auto        temp = std::string(it, content.cend());
     std::stringstream(temp) >> nmsp;
 
-    std::string template_lyh = R"(
+    std::string templateLyh = R"(
 #include "zzPREFIXzz.h"
 
 #include <filesystem>
@@ -111,25 +124,25 @@ namespace zzNAMESPACEzz
     {
         std::string temp(str); // TODO : avoid reallocating a string
         std::stringstream sstrm(temp);
-        return Load(context, sstrm);
+        Load(context, sstrm);
     }
 
     inline void LoadString(Context& context, std::string const& str)
     {
         std::stringstream sstrm(str);
-        return Load(context, sstrm);
+        Load(context, sstrm);
     }
 
     inline void LoadFile(Context& context, std::filesystem::path const& path)
     {
         std::ifstream file(path);
         if (!file.is_open()) throw std::invalid_argument("Cannot open file: " + path.string());
-        return Load(context, file);
+        Load(context, file);
     }
-}
+} // namespace zzNAMESPACEzz
 )";
 
-    std::string template_impl_hh = R"(
+    std::string templateImplHh = R"(
 #if defined _MSC_VER
 #pragma warning(push, 3)
 #endif
@@ -163,7 +176,7 @@ private:
 }
 )";
 
-    std::string template_y = R"(
+    std::string templateY = R"(
 %debug
 %defines
 %define api.namespace {zzNAMESPACEzz::impl}
@@ -236,7 +249,7 @@ void Load(Context& ctx, std::istream& strm)
 }
 )";
 
-    std::string                                  template_l = R"(
+    std::string                                  templateL = R"(
 %{
 #include "zzPREFIXzz.ly.impl.h"      // Generated us
 #if defined _MSC_VER
@@ -277,9 +290,9 @@ zzFLEXzz
 )";
     std::unordered_map<std::string, std::string> params     = {{"NAMESPACE", nmsp}, {"PREFIX", prefix}, {"YACC", yacc}, {"FLEX", flex}};
     std::unordered_map<std::string, std::string> files
-        = {{"y", template_y}, {"l", template_l}, {"ly.impl.h", template_impl_hh}, {"ly.h", template_lyh}};
-
-    for (auto const& [ext, tmpl] : files) { generate(stdfs::path(outdir) / stdfs::path(prefix + "." + ext), tmpl, params); }
+        = {{"y", templateY}, {"l", templateL}, {"ly.impl.h", templateImplHh}, {"ly.h", templateLyh}};
+        prefix += '.';
+    for (auto const& [ext, tmpl] : files) { Generate(stdfs::path(outdir) / stdfs::path(prefix + ext), tmpl, params); }
 } catch (std::exception const& ex)
 {
     std::cerr << ex.what();
