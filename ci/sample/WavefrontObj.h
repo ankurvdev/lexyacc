@@ -1,7 +1,6 @@
 #pragma once
-#include <numeric>
+#include <cstdint>
 #include <stdexcept>
-#include <stdint.h>
 #include <string>
 #include <vector>
 
@@ -19,12 +18,12 @@ struct FaceElem
     uint16_t normal;
 };
 
-inline void debugnewline()
+inline void Debugnewline()
 {}
 
 inline FaceElem CreateFaceElem(int v, int t, int n)
 {
-    return FaceElem{static_cast<uint16_t>(v), static_cast<uint16_t>(t), static_cast<uint16_t>(n)};
+    return FaceElem{.vertex=static_cast<uint16_t>(v), .texel=static_cast<uint16_t>(t), .normal=static_cast<uint16_t>(n)};
 }
 
 struct FaceElems
@@ -78,18 +77,18 @@ struct Context
         uint16_t v1, v2, v3;
     };
 
-    bool Debug() { return false; }
+    static bool Debug() { return false; }
     void NotifyError(int /*line*/, int /*col*/, std::string const& /*msg*/) {}
 
-    void CreateVertex(double x, double y, double z) { vertices.emplace_back(Vertex{x, y, z}); }
-    void CreateTexel(double u, double v) { texels.emplace_back(Texel{u, v}); }
-    void CreateNormal(double x, double y, double z) { normals.emplace_back(Normal{x, y, z}); }
+    void CreateVertex(double x, double y, double z) { vertices.emplace_back(Vertex{.x=x, .y=y, .z=z}); }
+    void CreateTexel(double u, double v) { texels.emplace_back(Texel{.u=u, .v=v}); }
+    void CreateNormal(double x, double y, double z) { normals.emplace_back(Normal{.x=x, .y=y, .z=z}); }
     void CreateFace(FaceElems& elemsIn)
     {
         FaceElems elems;
         std::swap(elems, elemsIn);
         if (elems.vertices.size() != 3) { throw std::invalid_argument("Polygon faces unsupported"); }
-        triangles.emplace_back(Triangle{elems.vertices[0], elems.vertices[1], elems.vertices[2]});
+        triangles.emplace_back(Triangle{.v1=elems.vertices[0], .v2=elems.vertices[1], .v3=elems.vertices[2]});
     }
 
     void SetCurrentObjectName(std::string& /*str*/) {}
