@@ -1,11 +1,13 @@
-# cppforge-sync
 include_guard(GLOBAL)
-cmake_minimum_required(VERSION 3.26)
+cmake_minimum_required(VERSION 3.31)
+cmake_policy(SET CMP0167 NEW)
+cmake_policy(SET CMP0168 NEW)
+
 include(GenerateExportHeader)
 set(BuildEnvCMAKE_LOCATION "${CMAKE_CURRENT_LIST_DIR}")
 
 # Fix for error
-#"CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND" -format=p1689 -- /usr/bin/c++ -x c++ ... 
+#"CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND" -format=p1689 -- /usr/bin/c++ -x c++ ...
 #/bin/sh: 1: CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND: not found
 # https://discourse.cmake.org/t/cmake-3-28-cmake-cxx-compiler-clang-scan-deps-notfound-not-found/9244/2
 set(CMAKE_CXX_SCAN_FOR_MODULES 0)
@@ -22,14 +24,14 @@ endif()
 macro(_PrintFlags)
     foreach (flagname
             CMAKE_C_FLAGS CMAKE_CXX_FLAGS
-            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS
+            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS
             CMAKE_INTERPROCEDURAL_OPTIMIZATION)
         foreach(variantstr _INIT
-                    "               "
-                    "_DEBUG         "
-                    "_RELEASE       "
+                    ""
+                    "_DEBUG"
+                    "_RELEASE"
                     "_RELWITHDEBINFO"
-                    "_MINSIZEREL    ")
+                    "_MINSIZEREL")
             set(varname ${flagname}${variantstr})
             message(STATUS "${varname}:${${varname}}")
         endforeach()
@@ -120,6 +122,15 @@ macro(EnableStrictCompilation)
         set(Threads_FOUND 1)
         # set(CMAKE_EXECUTABLE_SUFFIX ".html")
         set(CMAKE_CXX_COMPILE_OPTIONS_IPO "-flto=full")
+    endif()
+
+    if (CMAKE_CROSSCOMPILING)
+        if (EMSCRIPTEN)
+            find_program(NODE_JS_EXECUTABLE NAMES nodejs node)
+            if(NODE_JS_EXECUTABLE)
+                set(CMAKE_CROSSCOMPILING_EMULATOR ${NODE_JS_EXECUTABLE})
+            endif()
+        endif()
     endif()
 
     if (CMAKE_CXX_COMPILER_LOADED)
@@ -226,10 +237,31 @@ macro(EnableStrictCompilation)
                 # -std=c++20 via CMAKE_CXX_STANDARD
                 # -fvisibility-inlines-hidden via CMAKE_VISIBILITY_INLINES_HIDDEN
             )
+            if (APPLE AND CMAKE_LINKER_TYPE STREQUAL GNU)
+                message(WARNING "GNU linked on apple can sometimes cause issues. Consider using CMAKE_LINKER_TYPE=LLD")
+            endif()
+            if (APPLE AND ("${CMAKE_LINKER_TYPE}" STREQUAL "") AND ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
+                find_program(LLVM_LD_EXECUTABLE NAMES "ld.lld" "ld64.lld" "lld")
+                if (LLVM_LD_EXECUTABLE AND EXISTS "${LLVM_LD_EXECUTABLE}")
+                    message(STATUS "Using lld from ${LLVM_LD_EXECUTABLE} as linker")
+                    set(CMAKE_LINKER_TYPE LLD)
+                endif()
+            endif()
+            if (CMAKE_LINKER_TYPE STREQUAL GNU OR "${CMAKE_LINKER_TYPE}" STREQUAL "")
+                string(APPEND linker_flags " -Wl,--gc-sections") # Remove unused code sections
+                if (NOT EMSCRIPTEN) # TODO Find a better way to do this
+                    string(APPEND linker_flags " -Wl,--exclude-libs,ALL") # Exclude all static libs from symbol table
+                endif()
+                string(APPEND linker_flags " -Wl,--no-whole-archive") # Disable whole archive by
 
-            if (CMAKE_LINKER_TYPE STREQUAL GNU)
-                string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,--exclude-libs,ALL -Wl,--no-undefined -Wl,--gc-sections")
-                string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,--exclude-libs,ALL -Wl,--no-undefined -Wl,--gc-sections")
+                string(APPEND shlib_linker_flags " -Wl,--no-undefined") # No undefined symbols in shared libraries. aka -Wl,-z,defs
+                string(APPEND shlib_linker_flags " -Wl,-no-allow-shlib-undefined") # No undefined symbols in shared libraries
+                # string(APPEND shlib_linker_flags "-Wl,--unresolved-symbols=ignore-in-shared-libs") # Ignore undefined symbols in shared libs when linking executables
+                # string(APPEND shlib_linker_flags " -Wl,--as-needed") # Link only needed libraries. CMAKE_LINK_WHAT_YOU_USE handles this
+                # string(APPEND shlib_linker_flags " -Wl,--copy-dt-needed-entries") # Copy transitive dependencies of shared libraries. We dont want this
+                string(APPEND CMAKE_SHARED_LINKER_FLAGS " ${linker_flags} ${shlib_linker_flags}")
+                string(APPEND CMAKE_MODULE_LINKER_FLAGS " ${linker_flags} ${shlib_linker_flags}")
+                string(APPEND CMAKE_EXE_LINKER_FLAGS " ${linker_flags}")
             endif()
             if (NOT EMSCRIPTEN)
                 list(APPEND extraflags -Werror)     # All warnings as errors
@@ -239,7 +271,7 @@ macro(EnableStrictCompilation)
                 list(APPEND extraflags -pthread -Wno-limited-postlink-optimizations -sASYNCIFY)
                 # string(APPEND CMAKE_LINKER_FLAGS " -Wl,-u,htonl -Wl,-u,htons")
                 #TODO https://github.com/emscripten-core/emscripten/issues/16836
-                #list(APPEND extraflags -Wl,-u,htonl -Wl,-u,htons ) 
+                #list(APPEND extraflags -Wl,-u,htonl -Wl,-u,htons )
             endif()
             if ("${CMAKE_CXX_COMPILER_ID}" MATCHES Clang)
                 if ((NOT DEFINED CLANG_TIDY_MODE) OR ("${CLANG_TIDY_MODE}" STREQUAL ""))
@@ -274,16 +306,20 @@ macro(EnableStrictCompilation)
                     -Wno-unknown-warning
                     -Wno-unknown-argument
                     -Wno-c99-extensions
+                    -Wno-c2y-extensions
                     -Wno-unused-command-line-argument
                     -Wno-c++98-compat # Dont care about c++98 compatibility
                     -Wno-c++20-compat
                     -Wno-c++20-extensions
+                    -Wno-c++23-extensions
                     -Wno-c++98-compat-pedantic
                     -Wno-reserved-identifier # Allow names starting with underscore
                     -Wno-reserved-id-macro
                     -Wno-unsafe-buffer-usage
                     -Wno-disabled-macro-expansion # fmt::print(stderr, ...)
                     -Wno-nrvo # clang-21
+                    -Wno-thread-safety-negative # clang-21
+                    -Wno-shadow-header # clang-22
                     )
             else()
                 list(APPEND extracxxflags -Wno-error=stringop-overflow)
@@ -306,18 +342,23 @@ macro(EnableStrictCompilation)
                 -Wno-nrvo # clang-21
             )
 
-            if (APPLE)
-                list(APPEND extracxxflags -Wno-poison-system-directories)
+            if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang" AND NOT CMAKE_CROSSCOMPILING)
+                # AppleClang automatically adds /usr/local/include if an explicit sdk path isnt provided
+                # including /usr/local/include triggers a Wpoison-include-directories with clang
+                execute_process(COMMAND_ERROR_IS_FATAL ANY COMMAND xcrun --show-sdk-path OUTPUT_VARIABLE MACOS_SDK_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
+                list(APPEND extraflags --sysroot="${MACOS_SDK_PATH}")
             endif()
 
-            if (NOT DEFINED CPPFORGE_DISABLE_MARCH_NATIVE AND DEFINED ENV{CPPFORGE_DISABLE_MARCH_NATIVE})
-                set(CPPFORGE_DISABLE_MARCH_NATIVE $ENV{CPPFORGE_DISABLE_MARCH_NATIVE})
-            else()
-                set(CPPFORGE_DISABLE_MARCH_NATIVE OFF)
+            if (NOT DEFINED BUILDENV_DISABLE_MARCH_NATIVE)
+                if (DEFINED ENV{BUILDENV_DISABLE_MARCH_NATIVE})
+                    set(BUILDENV_DISABLE_MARCH_NATIVE $ENV{BUILDENV_DISABLE_MARCH_NATIVE})
+                else()
+                    set(BUILDENV_DISABLE_MARCH_NATIVE OFF)
+                endif()
             endif()
 
-            if (NOT CMAKE_CROSSCOMPILING AND NOT CPPFORGE_DISABLE_MARCH_NATIVE)
-                list(APPEND extraflags -mtune=native -march=native)
+            if (NOT CMAKE_CROSSCOMPILING AND NOT BUILDENV_DISABLE_MARCH_NATIVE)
+                list(APPEND extraflags -march=native)
             endif()
 
             set(exclusions "[-/]W[a-zA-Z1-9]+")
@@ -357,6 +398,14 @@ macro (SupressWarningForFile f)
     endif()
 endmacro()
 
+macro (SupressLintingForTarget targetName)
+    if (TARGET ${targetName})
+        set_target_properties(${targetName} PROPERTIES
+            C_CLANG_TIDY ""
+            CXX_CLANG_TIDY ""
+        )
+    endif()
+endmacro()
 
 macro (SupressWarningForTarget targetName)
     if (TARGET ${targetName})
@@ -396,3 +445,12 @@ function(init_submodule path)
         COMMAND_ERROR_IS_FATAL ANY
     )
 endfunction()
+
+macro(DetectVar varName defaultValue)
+    if (DEFINED ENV{${varName}})
+        set(${varName} $ENV{${varName}})
+    endif()
+    if (NOT DEFINED ${varName})
+        set(${varName} ${defaultValue})
+    endif()
+endmacro()

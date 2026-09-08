@@ -149,8 +149,16 @@ function(_target_add_lexyacc target lyfile lexyacc_NAME)
     )
 
     target_sources(${target} PRIVATE "${lyfile}" ${outputs})
-    target_include_directories(${target} PUBLIC "${outdir}")
-    target_include_directories(${target} PRIVATE ${FLEX_INCLUDE_DIR})
+    set_source_files_properties("${lc}" PROPERTIES
+            C_CLANG_TIDY ""
+            CXX_CLANG_TIDY ""
+    )
+    set_source_files_properties("${yc}" PROPERTIES
+            C_CLANG_TIDY ""
+            CXX_CLANG_TIDY ""
+    )
+    target_include_directories(${target} SYSTEM PUBLIC "${outdir}")
+    target_include_directories(${target} SYSTEM PRIVATE ${FLEX_INCLUDE_DIR})
 
     if (${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         target_compile_options(${target} PRIVATE /W3 /WX-)
@@ -163,9 +171,12 @@ function(_target_add_lexyacc target lyfile lexyacc_NAME)
         # 4668 is not defined as a preprocessor macro, replacing with '0' for '#if/#elif'
         set_source_files_properties("${lc}" PROPERTIES COMPILE_FLAGS "/W3")
         set_source_files_properties("${yc}" PROPERTIES COMPILE_FLAGS "/W3")
-    elseif((${CMAKE_CXX_COMPILER_ID} STREQUAL GNU) OR (${CMAKE_CXX_COMPILER_ID} MATCHES Clang))
-        set_source_files_properties(${lc} PROPERTIES COMPILE_FLAGS "-Wno-everything")
-        set_source_files_properties(${yc} PROPERTIES COMPILE_FLAGS "-Wno-everything")
+    elseif((${CMAKE_CXX_COMPILER_ID} MATCHES Clang))
+        set_source_files_properties("${lc}" PROPERTIES COMPILE_FLAGS "-Wno-everything -Wno-error")
+        set_source_files_properties("${yc}" PROPERTIES COMPILE_FLAGS "-Wno-everything -Wno-error")
+    elseif((${CMAKE_CXX_COMPILER_ID} STREQUAL GNU))
+        set_source_files_properties("${lc}" PROPERTIES COMPILE_FLAGS "-Wno-error")
+        set_source_files_properties("${yc}" PROPERTIES COMPILE_FLAGS "-Wno-error")
     endif()
 endfunction()
 
@@ -187,4 +198,8 @@ function(add_lexyacc_library)
     #message(FATAL_ERROR "${ARGN} :: ${_TARGET} ::${_LYFILE}")
     add_library(${_TARGET} OBJECT ${_SOURCES})
     _target_add_lexyacc(${_TARGET} "${_LYFILE}" ${_TARGET})
+    set_target_properties(${_TARGET} PROPERTIES
+        C_CLANG_TIDY ""
+        CXX_CLANG_TIDY ""
+    )
 endfunction()
