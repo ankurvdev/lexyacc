@@ -1,4 +1,9 @@
 cmake_minimum_required(VERSION 3.26)
+# On windows vcpkg z-applocal causes issues
+if (WIN32)
+    set(VCPKG_USE_LEGACY_APPLOCAL ON CACHE BOOL "")
+endif()
+
 if(NOT EXISTS "${VCPKG_ROOT}")
     message(FATAL_ERROR "Please run with -DVCPKG_ROOT=<vcpkg-root> ${VCPKG_ROOT} not found")
 endif()
@@ -29,4 +34,6 @@ target_include_directories(WavefrontObj PRIVATE .)
 target_include_directories(lexyacctest PRIVATE .)
 
 enable_testing()
-add_test(NAME lexyacctest COMMAND lexyacctest)
+if (NOT CMAKE_CROSSCOMPILING OR (DEFINED CMAKE_CROSSCOMPILING_EMULATOR))
+    add_test(NAME lexyacctest COMMAND lexyacctest)
+endif()
