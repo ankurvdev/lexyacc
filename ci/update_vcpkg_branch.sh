@@ -4,12 +4,13 @@ set -e
 set -o pipefail
 
 scriptdir=$(dirname $(readlink -f $0))
+vcpkgdir=${1:-${scriptdir}/vcpkg.tmp}
 
 git -C ${scriptdir} fetch --all --prune
 git -C ${scriptdir} checkout origin/vcpkg
 commitId=$(git -C ${scriptdir} rev-parse HEAD)
 shortCommitId=$(git -C ${scriptdir} rev-parse --short HEAD)
-project=$(git -C ${scriptdir} config remote.origin.url | grep -oE 'ankurvdev/[^.]*' | cut - -d '/' -f2)
+project=$(git -C ${scriptdir} config remote.origin.url | grep -oE 'ankurvdev/[^.]*' | cut -d '/' -f2 -)
 
 echo "${scriptdir} ${project} ${commitId} ${shortCommitId}"
 if [ -e ${scriptdir}/vcpkg-additional-ports/${project}/portfile.cmake ]; then
@@ -21,7 +22,6 @@ else
 fi
 
 vcpkgurl=$(git -C ${scriptdir} config remote.origin.url | grep -oE '.*ankurvdev')/vcpkg
-vcpkgdir=${scriptdir}/vcpkg.tmp
 echo "${vcpkgurl} ${vcpkgdir}"
 
 if [ ! -e ${vcpkgdir} ]; then
